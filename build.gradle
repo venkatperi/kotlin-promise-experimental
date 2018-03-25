@@ -1,0 +1,110 @@
+buildscript {
+  ext {
+    nexusUrl = findProperty('nexusUrl')
+    libs = [
+        kotlin : '1.2.30',
+        dokka  : '0.9.16',
+        kotlinx: '0.22.5',
+    ] << (findProperty('libs') ?: [dummy: ""])
+  }
+  repositories {
+    if (nexusUrl)
+      maven { url "${nexusUrl}/repository/maven-public/" }
+    else {
+      mavenCentral()
+      jcenter()
+      maven { url "https://plugins.gradle.org/m2/" }
+    }
+  }
+  dependencies {
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${libs.kotlin}"
+    classpath "org.jetbrains.dokka:dokka-gradle-plugin:${libs.dokka}"
+    classpath "me.champeau.gradle:jmh-gradle-plugin:0.4.5"
+  }
+}
+
+apply plugin: 'kotlin'
+apply plugin: 'java'
+apply plugin: 'maven'
+apply plugin: 'org.jetbrains.dokka'
+apply plugin: "me.champeau.gradle.jmh"
+
+group = "com.vperi"
+
+ext {
+  nexusUrl = findProperty('nexusUrl')
+}
+
+repositories {
+  if (nexusUrl) {
+    maven { url "${nexusUrl}/repository/maven-public/" }
+    maven { url 'https://jitpack.io' }
+  } else {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+  }
+}
+
+sourceSets {
+  jmh.kotlin.srcDirs += 'src/jmh/kotlin'
+  main.kotlin.srcDirs += 'src/main/kotlin'
+//  test.kotlin.srcDirs += 'src/main/kotlin'
+}
+
+dokka {
+  includes = ['intro.md']
+  outputFormat = 'gfm'
+  reportUndocumented = false
+  outputDirectory = "$buildDir/gfm"
+  packageOptions {
+    prefix = "com.vperi.promise.internal"
+    suppress = true
+  }
+  packageOptions {
+    prefix = "com.vperi.benchmarks"
+    suppress = true
+  }
+}
+
+
+dependencies {
+  implementation "org.jetbrains.kotlin:kotlin-stdlib:${libs.kotlin}"
+  implementation 'com.google.guava:guava:24.0-jre'
+  compile 'com.vperi:kotlin-util:1.0.2'
+  compile 'com.vperi:kotlin-coroutines-lib:1.0.2'
+  compile "org.jetbrains.kotlinx:kotlinx-coroutines-core:${libs.kotlinx}"
+  compile "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:${libs.kotlinx}"
+
+  testCompile 'junit:junit:4.12'
+  testCompile "org.jetbrains.kotlin:kotlin-test-junit:${libs.kotlin}"
+  testCompile group: 'net.jodah', name: 'concurrentunit', version: '0.4.3'
+}
+
+jmh {
+  fork = 0
+  warmupIterations = 1
+  iterations = 10
+}
+
+task copyDocs(type: Copy, dependsOn: ["dokka"]) {
+  from "$buildDir/gfm/kotlin-promise"
+  into "$projectDir/docs"
+  rename 'index.md', 'readme.md'
+
+}
+
+task docs(dependsOn: ["copyDocs"])
+
+kotlin {
+  experimental {
+    coroutines "enable"
+  }
+}
+
+tasks.withType(Test) {
+  testLogging {
+    showStandardStreams = true
+//    events "passed", "failed"
+  }
+}
+
